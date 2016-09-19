@@ -35,6 +35,8 @@
 	self.wheelPicker.continuousTrigger = YES;
 	
 	self.wheelPicker.animationDecelerationFactor = 0.99;
+    self.wheelPicker.minimumSpeed = 0.5;
+    self.wheelPicker.maximumSpeed = 0.8;
 	
 	[self.view addSubview:self.wheelPicker];
 	

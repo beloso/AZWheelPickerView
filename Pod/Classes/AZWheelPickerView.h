@@ -13,9 +13,7 @@
 // You can turn on ARC for only AZWheelPickerView files by adding -fobjc-arc to the build phase for each of its files.
 #endif
 
-
-#define kAZWheelPickerDefaultDeceleration	0.97
-
+@protocol AZWheelPickerViewDelegate;
 
 @interface AZWheelPickerView : UIControl
 {
@@ -37,11 +35,12 @@
 	BOOL isRotatingByTimerWhenThisTapHappen;
 }
 
+@property (nonatomic, weak) id<AZWheelPickerViewDelegate> delegate;
+
 /**
  The UIImage of the spin wheel. Generally it is circle.
  */
 @property (nonatomic, strong) UIImage *wheelImage;
-
 
 /**
  The initial rotation of the wheel. In most case the wheel's position is not match
@@ -65,6 +64,9 @@
  */
 @property (nonatomic, assign) float animationDecelerationFactor;
 
+@property (nonatomic, assign) float maximumSpeed;
+@property (nonatomic, assign) float minimumSpeed;
+
 /**
  If set to YES, the UIControlEventValueChanged event will be send every time a sector pass by
  when animating. Else the event will be send after the animation stopped.
@@ -72,5 +74,16 @@
 @property (nonatomic, assign) BOOL continuousTrigger;
 
 - (void)setSelectedIndex:(int)selectedIndex animated:(BOOL)animated;
+
+@end
+
+
+@protocol AZWheelPickerViewDelegate <NSObject>
+
+@optional
+- (void)wheelViewDidStartSpinning:(AZWheelPickerView *)wheelView;
+- (void)wheelViewDidEndSpinning:(AZWheelPickerView *)wheelView;
+
+- (void)wheelView:(AZWheelPickerView *)wheelView didSelectItemAtIndex:(NSUInteger)index;
 
 @end

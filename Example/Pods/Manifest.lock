@@ -1,6 +1,10 @@
 PODS:
-  - AZWheelPickerView (0.1.0)
-  - FBSnapshotTestCase (1.4)
+  - AZWheelPickerView (0.1.1)
+  - FBSnapshotTestCase (2.1.2):
+    - FBSnapshotTestCase/SwiftSupport (= 2.1.2)
+  - FBSnapshotTestCase/Core (2.1.2)
+  - FBSnapshotTestCase/SwiftSupport (2.1.2):
+    - FBSnapshotTestCase/Core
 
 DEPENDENCIES:
   - AZWheelPickerView (from `../`)
@@ -8,10 +12,12 @@ DEPENDENCIES:
 
 EXTERNAL SOURCES:
   AZWheelPickerView:
-    :path: ../
+    :path: "../"
 
 SPEC CHECKSUMS:
-  AZWheelPickerView: cfb2a2ca5bb61e93970ee972495da6dba683b188
-  FBSnapshotTestCase: f9f225b5ba11c8d8c09075590490df16314e4d62
+  AZWheelPickerView: 389e417774f4ae78380e06f748e96f3385669cb0
+  FBSnapshotTestCase: 918c55861356ee83aee7843d759f55a18ff6982b
 
-COCOAPODS: 0.35.0
+PODFILE CHECKSUM: bbb6f6e47097741f3ff21a3c0eb5249a1b2c542e
+
+COCOAPODS: 1.1.0.rc.2

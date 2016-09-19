@@ -9,7 +9,7 @@
 
 Pod::Spec.new do |s|
   s.name             = "AZWheelPickerView"
-  s.version          = "0.1.1"
+  s.version          = "0.2"
   s.summary          = "An iOS spin wheel control for selecting something."
   s.description      = <<-DESC
                        # AZWheelPickerView
