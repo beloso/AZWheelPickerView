@@ -16,7 +16,8 @@
 
 @interface AZWheelPickerView ()
 
-@property (nonatomic, assign) float currentRotation;
+@property (nonatomic, assign) CGFloat currentRotation;
+@property (nonatomic, strong) CABasicAnimation *rotatingAnimation;
 
 @end
 
@@ -26,7 +27,7 @@
     self = [super initWithFrame:frame];
 
     if (self) {
-        
+
         [self myInit];
     }
 
@@ -37,7 +38,7 @@
     self = [super initWithCoder:decoder];
 
     if (self) {
-        
+
         [self myInit];
     }
 
@@ -69,13 +70,11 @@
     }
 
     if (!theWheel) {
-        theWheel                        = [[UIImageView alloc] initWithImage:self.wheelImage];
-        theWheel.userInteractionEnabled = NO;
-        theWheel.image                  = self.wheelImage;
-        theWheel.transform              = CGAffineTransformMakeRotation(self.wheelInitialRotation);
+        theWheel           = [[UIImageView alloc] initWithImage:self.wheelImage];
+        theWheel.transform = CGAffineTransformMakeRotation(self.wheelInitialRotation);
         [self addSubview:theWheel];
 
-        wheelSize                       = self.wheelImage.size;
+        wheelSize          = self.wheelImage.size;
     }
 
     [self fixPositionByIndexAnimated:NO];
@@ -129,13 +128,13 @@
         float dur       = thisAtan2 - lastAtan2;
 
         if (self.continuousTrigger) {
-            
+
             self.currentRotation += dur;
-            
+
         } else {
-            
+
             _currentRotation += dur;
-            
+
             [self rotateToCurrentRotationAnimated:NO];
         }
 
@@ -159,6 +158,7 @@
 
 - (void)touchesEnded:(NSSet *)touches
            withEvent:(UIEvent *)event {
+
     isTouchDown = NO;
 
     [self handleTouchesEndedOrCancelled:touches];
@@ -169,13 +169,6 @@
     if (isTouchMoved) {
 
         [self continueByInertia];
-
-        if (self.delegate &&
-            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-            [self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]) {
-
-            [self.delegate wheelViewDidStartSpinning:self];
-        }
 
     } else {
 
@@ -188,35 +181,39 @@
 
 - (void)continueByInertia {
 
-    if (inertiaTimer) {
-        return;
-    }
-
-    if (lastMovedTime1 == lastMovedTime2) {
-        [self fixPositionByRotationAnimated:YES];
-
-        return;
-    }
-
     NSTimeInterval interval = (lastMovedTime2 - lastMovedTime1);
 
-    if (interval > kAZWheelPickerInertiaTimerAcceptableMaxInterval) {
-        [self fixPositionByRotationAnimated:YES];
+    if (inertiaTimer) {
 
         return;
+    } else if (interval == 0 || interval > kAZWheelPickerInertiaTimerAcceptableMaxInterval) {
+
+        [self fixPositionByRotationAnimated:YES];
+
+    } else {
+
+        currentSpeed = MIN(lastDuration, self.maximumSpeed);
+
+        if (interval < kAZWheelPickerInertiaTimerAcceptableMinInterval) {
+
+            currentSpeed = kAZWheelPickerInertiaTimerAcceptableMinInterval * currentSpeed / interval;
+            interval     = kAZWheelPickerInertiaTimerAcceptableMinInterval;
+        }
+
+        inertiaTimer = [NSTimer scheduledTimerWithTimeInterval:interval
+                                                        target:self
+                                                      selector:@selector(onInertiaTimer)
+                                                      userInfo:nil
+                                                       repeats:YES];
+        [self onInertiaTimer];     // excute once immediately
+
+        if (self.delegate &&
+            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
+            [self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]) {
+
+            [self.delegate wheelViewDidStartSpinning:self];
+        }
     }
-
-    currentSpeed = MIN(lastDuration, self.maximumSpeed);
-
-    if (interval < kAZWheelPickerInertiaTimerAcceptableMinInterval) {
-        currentSpeed = kAZWheelPickerInertiaTimerAcceptableMinInterval * currentSpeed / interval;
-        interval     = kAZWheelPickerInertiaTimerAcceptableMinInterval;
-    }
-
-    inertiaTimer = [NSTimer scheduledTimerWithTimeInterval:interval
-                                                    target:self selector:@selector(onInertiaTimer)
-                                                  userInfo:nil repeats:YES];
-    [self onInertiaTimer];     // excute once immediately
 }
 
 - (void)onInertiaTimer {
@@ -229,6 +226,7 @@
 
         _currentRotation += currentSpeed;
         [self rotateToCurrentRotationAnimated:NO];
+
     }
 
     currentSpeed *= self.animationDecelerationFactor;
@@ -238,11 +236,11 @@
 
         [self stopInertiaTimer];
         [self fixPositionByRotationAnimated:YES];
-        
+
         if (self.delegate &&
             [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-            [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]){
-            
+            [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+
             [self.delegate wheelViewDidEndSpinning:self];
         }
     }
@@ -278,21 +276,73 @@
 
 - (void)rotateToCurrentRotationAnimated:(BOOL)animated {
 
-    dispatch_block_t animationBlock = ^{
+    [self rotateToCurrentRotationAnimated:animated completion:nil];
+}
 
-        theWheel.transform = CGAffineTransformMakeRotation(self.currentRotation);
-    };
+- (void)rotateToCurrentRotationAnimated:(BOOL)animated completion:(void (^)(void))completion {
 
-    if (animated) {
+    [self rotateToCurrentRotationAnimated:animated needsCorrection:NO completion:completion];
+}
 
-        [UIView animateWithDuration:0.3 animations:^{
-             animationBlock();
+- (void)rotateToCurrentRotationAnimated:(BOOL)animated
+                        needsCorrection:(BOOL)correction
+                             completion:(void (^)(void))completion {
+
+    CGFloat duration = 1.0;
+    CGFloat maxSteps = 2.0;
+    
+    typeof(self) weakself = self;
+    [UIView animateKeyframesWithDuration:currentSpeed
+                                   delay:0.0
+                                 options:UIViewKeyframeAnimationOptionCalculationModeLinear
+                              animations:^{
+
+         if (!correction) {
+
+             [UIView addKeyframeWithRelativeStartTime:0
+                                     relativeDuration:1.0 / duration
+                                           animations:^{
+                  theWheel.transform = CGAffineTransformMakeRotation(weakself.currentRotation);
+              }];
+
+         } else {
+             
+             [UIView addKeyframeWithRelativeStartTime:0
+                                     relativeDuration:duration / maxSteps
+                                           animations:^{
+                  theWheel.transform = CGAffineTransformRotate(theWheel.transform, M_PI);
+              }];
+
+             [UIView addKeyframeWithRelativeStartTime:1.0 / maxSteps
+                                     relativeDuration:duration / maxSteps
+                                           animations:^{
+                  theWheel.transform = CGAffineTransformMakeRotation(weakself.currentRotation);
+              }];
          }
-                         completion:nil];
-    } else {
+     }
+                              completion:^(BOOL finished) {
+         if (completion) {
 
-        animationBlock();
-    }
+             completion();
+         }
+     }];
+
+//    dispatch_block_t animationBlock = ^{
+//
+//        theWheel.transform = CGAffineTransformMakeRotation(self.currentRotation);
+//    };
+//
+//    [UIView animateWithDuration:animated ? 0.3 : 0.0
+//                     animations:^{
+//                         animationBlock();
+//                     }
+//                     completion:^(BOOL finished) {
+//
+//                         if (completion) {
+//
+//                             completion();
+//                         }
+//                     }];
 }
 
 - (void)setCurrentRotation:(float)currentRotation {
@@ -310,11 +360,27 @@
     BOOL isChanged = (_selectedIndex != index);
     _selectedIndex = index;
 
-    [self rotateToCurrentRotationAnimated:animated];
+    [self stopInertiaTimer];
+    [self rotateToCurrentRotationAnimated:animated completion:^{
+
+         if (self.delegate &&
+             [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
+             [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+
+             [self.delegate wheelViewDidEndSpinning:self];
+         }
+     }];
 
     if (isChanged) {
 
         [self sendActionsForControlEvents:UIControlEventValueChanged];
+
+        if (self.delegate &&
+            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
+            [self.delegate respondsToSelector:@selector(wheelView:didSelectItemAtIndex:)]) {
+
+            [self.delegate wheelView:self didSelectItemAtIndex:index];
+        }
     }
 }
 
@@ -326,25 +392,39 @@
 - (void)setSelectedIndex:(int)selectedIndex
                 animated:(BOOL)animated {
 
-    BOOL isChanged = (_selectedIndex != selectedIndex);
+    BOOL isChanged     = (_selectedIndex != selectedIndex);
 
-    _selectedIndex   = selectedIndex;
+    NSInteger oldIndex = _selectedIndex;
+    _selectedIndex = selectedIndex;
 
-    float rotation = [self index2rotation:selectedIndex];
-    _currentRotation = rotation;
+    CGFloat oldAngle   = _currentRotation;
+    CGFloat newAngle   = [self index2rotation:selectedIndex];
 
-    [self rotateToCurrentRotationAnimated:animated];
+    _currentRotation = newAngle;
+
+    CGFloat a = [self distanceBetweenAnglesAlpha:newAngle beta:oldAngle];
+    NSLog(@"Correcting angle %f: %@", a, a < 0 ? @"YES" : @"NO");
+    [self stopInertiaTimer];
+    [self rotateToCurrentRotationAnimated:animated needsCorrection:(a < 0) completion:^{
+
+         if (self.delegate &&
+             [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
+             [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+
+             [self.delegate wheelViewDidEndSpinning:self];
+         }
+     }];
 
     if (isChanged) {
 
         [self sendActionsForControlEvents:UIControlEventValueChanged];
-    }
-    
-    if (self.delegate &&
-        [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-        [self.delegate respondsToSelector:@selector(wheelView:didSelectItemAtIndex:)]){
-    
-        [self.delegate wheelView:self didSelectItemAtIndex:selectedIndex];
+
+        if (self.delegate &&
+            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
+            [self.delegate respondsToSelector:@selector(wheelView:didSelectItemAtIndex:)]) {
+
+            [self.delegate wheelView:self didSelectItemAtIndex:selectedIndex];
+        }
     }
 }
 
@@ -361,6 +441,11 @@
 }
 
 #pragma mark -
+
+- (CGFloat)distanceBetweenAnglesAlpha:(CGFloat)x beta:(CGFloat)y {
+
+    return atan2(sin(x - y), cos(x - y));
+}
 
 - (CGSize)sizeThatFits:(CGSize)size {
 

@@ -46,26 +46,26 @@
  The initial rotation of the wheel. In most case the wheel's position is not match
  with the pointer, you can set a inital rotation to correct it.
  */
-@property (nonatomic, assign) float wheelInitialRotation;
+@property (nonatomic) CGFloat wheelInitialRotation;
 
 /**
  A wheel is made up by several sectors each of them have the same angle.
  Specify the number of sectors here.
  */
-@property (nonatomic, assign) int numberOfSectors;
+@property (nonatomic) NSUInteger numberOfSectors;
 
 /**
  The index is inside [0, numberOfSectors - 1]
  */
-@property (nonatomic, assign) int selectedIndex;
+@property (nonatomic) NSUInteger selectedIndex;
 
 /**
  The deceleration of the animation. The default is kAZWheelPickerDefaultDeceleration (0.97).
  */
-@property (nonatomic, assign) float animationDecelerationFactor;
+@property (nonatomic) CGFloat animationDecelerationFactor;
 
-@property (nonatomic, assign) float maximumSpeed;
-@property (nonatomic, assign) float minimumSpeed;
+@property (nonatomic) CGFloat maximumSpeed;
+@property (nonatomic) CGFloat minimumSpeed;
 
 /**
  If set to YES, the UIControlEventValueChanged event will be send every time a sector pass by
