@@ -9,15 +9,33 @@
 #import "AZWheelPickerView.h"
 #import <QuartzCore/QuartzCore.h>
 
-#define kAZWheelPickerDefaultDeceleration       0.97
-#define kAZWheelPickerDefaultMinimumSpeed       0.01
-#define kAZWheelPickerInertiaTimerAcceptableMaxInterval (1.0 / 30.0) // xx fps
-#define kAZWheelPickerInertiaTimerAcceptableMinInterval (1.0 / 60.0) // xx fps
+#define kAZWheelPickerDefaultDeceleration       0.99
+#define kAZWheelPickerDefaultMinimumSpeed       0.001
+#define kAZWheelPickerChooseSectorSpeed         0.06
+#define kMinimumDelta                           0.30 //minimum speed to use if the touch move event is too slow
+#define kTimePerFrame (1.0 / 60.0) // 60 fps
+#define kCorrectionAnimationDuration 0.5
 
 @interface AZWheelPickerView ()
 
-@property (nonatomic, assign) CGFloat currentRotation;
-@property (nonatomic, strong) CABasicAnimation *rotatingAnimation;
+@property (nonatomic) CGFloat currentRotation;
+@property (nonatomic) int currentIndex;
+@property (nonatomic, strong) NSTimer *inertiaTimer;
+
+@property (nonatomic, strong) UIImageView *theWheel;
+@property (nonatomic, strong) UIImageView *wheelOver;
+
+@property (nonatomic)CGSize wheelSize;
+@property (nonatomic)BOOL isTouchDown;
+@property (nonatomic)BOOL isTouchMoved;
+@property (nonatomic)BOOL wheelBrakingHasStarted;
+@property (nonatomic)float lastAtan2;
+@property (nonatomic)float lastDelta;
+@property (nonatomic)float currentSpeed;
+@property (nonatomic)NSTimeInterval lastMovedTime1;
+@property (nonatomic)NSTimeInterval lastMovedTime2;
+
+@property (nonatomic)BOOL isRotatingByTimerWhenThisTapHappen;
 
 @end
 
@@ -48,10 +66,12 @@
 - (void)myInit {
 
     self.animationDecelerationFactor = kAZWheelPickerDefaultDeceleration;
-    self.minimumSpeed                = kAZWheelPickerDefaultMinimumSpeed;
-    self.maximumSpeed                = INT_MAX;
-    self.continuousTrigger           = NO;
+//    self.minimumSpeed                = kAZWheelPickerDefaultMinimumSpeed;
+//    self.continuousTrigger           = NO;
+    self.desiredIndex = -1;
+    self.currentIndex = -1;
 }
+
 
 - (void)dealloc {
 
@@ -69,12 +89,24 @@
         return;
     }
 
-    if (!theWheel) {
-        theWheel           = [[UIImageView alloc] initWithImage:self.wheelImage];
-        theWheel.transform = CGAffineTransformMakeRotation(self.wheelInitialRotation);
-        [self addSubview:theWheel];
+    if (!self.theWheel) {
+        self.theWheel           = [[UIImageView alloc] initWithImage:self.wheelImage];
+        self.theWheel.transform = CGAffineTransformMakeRotation(self.wheelInitialRotation);
+        [self addSubview:self.theWheel];
 
-        wheelSize          = self.wheelImage.size;
+        self.wheelSize          = self.wheelImage.size;
+    }
+    
+    if (!self.theWheel) {
+        self.theWheel           = [[UIImageView alloc] initWithImage:self.wheelImage];
+        self.theWheel.transform = CGAffineTransformMakeRotation(self.wheelInitialRotation);
+        [self addSubview:self.theWheel];
+        
+        self.wheelSize          = self.wheelImage.size;
+    }
+    
+    if (!self.wheelOver) {
+        self.wheelOver           = [[UIImageView alloc] initWithImage:self.wheelOverImage];
     }
 
     [self fixPositionByIndexAnimated:NO];
@@ -84,10 +116,10 @@
 
 - (void)stopInertiaTimer {
 
-    if (inertiaTimer) {
+    if (self.inertiaTimer) {
 
-        [inertiaTimer invalidate];
-        inertiaTimer = nil;
+        [self.inertiaTimer invalidate];
+        self.inertiaTimer = nil;
     }
 }
 
@@ -95,62 +127,60 @@
 
 - (void)touchesBegan:(NSSet *)touches
            withEvent:(UIEvent *)event {
+    
+#warning This should be removed once testing is done
+    self.animationDecelerationFactor = kAZWheelPickerDefaultDeceleration;
+    self.currentIndex = -1;
+    [self.wheelOver removeFromSuperview];
+//end
+    
+    self.isTouchDown                        = YES;
+    self.isTouchMoved                       = NO;
+    self.isRotatingByTimerWhenThisTapHappen = NO;
 
-    isTouchDown                        = YES;
-    isTouchMoved                       = NO;
-    isRotatingByTimerWhenThisTapHappen = NO;
+    if (self.inertiaTimer) {
 
-    if (inertiaTimer) {
-
-        isRotatingByTimerWhenThisTapHappen = YES;
+        self.isRotatingByTimerWhenThisTapHappen = YES;
         [self stopInertiaTimer];
     }
 
     CGPoint pos = [[touches anyObject] locationInView:self];
-    lastAtan2      = atan2(pos.y - wheelSize.width / 2,
-                           pos.x - wheelSize.height / 2);
+    self.lastAtan2      = atan2(pos.y - self.wheelSize.width / 2,
+                           pos.x - self.wheelSize.height / 2);
 
-    lastMovedTime1 = 0;
-    lastMovedTime2 = 0;
+    self.lastMovedTime1 = 0;
+    self.lastMovedTime2 = 0;
 }
 
 - (void)touchesMoved:(NSSet *)touches
            withEvent:(UIEvent *)event {
 
-    isTouchMoved = YES;
+    self.isTouchMoved = YES;
 
-    if (isTouchDown) {
+    if (self.isTouchDown) {
 
         CGPoint pos     = [[touches anyObject] locationInView:self];
-        float thisAtan2 = atan2(pos.y - wheelSize.width / 2,
-                                pos.x - wheelSize.height / 2);
+        float thisAtan2 = atan2(pos.y - self.wheelSize.width / 2,
+                                pos.x - self.wheelSize.height / 2);
 
-        float dur       = thisAtan2 - lastAtan2;
+        self.lastDelta       = thisAtan2 - self.lastAtan2;
 
-        if (self.continuousTrigger) {
+        _currentRotation += self.lastDelta;
+            
+        self.theWheel.transform = CGAffineTransformMakeRotation(_currentRotation);
+        
 
-            self.currentRotation += dur;
+        self.lastAtan2      = thisAtan2;
 
-        } else {
-
-            _currentRotation += dur;
-
-            [self rotateToCurrentRotationAnimated:NO];
-        }
-
-        lastAtan2      = thisAtan2;
-
-        lastMovedTime1 = lastMovedTime2;
-        lastMovedTime2 = [NSDate timeIntervalSinceReferenceDate];
-
-        lastDuration   = dur;
+        self.lastMovedTime1 = self.lastMovedTime2;
+        self.lastMovedTime2 = [NSDate timeIntervalSinceReferenceDate];
     }
 }
 
 - (void)touchesCancelled:(NSSet *)touches
                withEvent:(UIEvent *)event {
 
-    isTouchDown = NO;
+    self.isTouchDown = NO;
 
     [self handleTouchesEndedOrCancelled:touches];
 
@@ -159,94 +189,157 @@
 - (void)touchesEnded:(NSSet *)touches
            withEvent:(UIEvent *)event {
 
-    isTouchDown = NO;
+    self.isTouchDown = NO;
 
     [self handleTouchesEndedOrCancelled:touches];
 }
 
 - (void)handleTouchesEndedOrCancelled:(NSSet *)touches {
 
-    if (isTouchMoved) {
+    if (self.isTouchMoved) {
 
-        [self continueByInertia];
+    [self continueByInertia2];
 
-    } else {
 
-        [self fixPositionByRotationAnimated:YES];
     }
+//        else {
+//
+//        [self fixPositionByRotationAnimated:YES];
+//    }
 }
 
 #pragma mark -
 
+- (void)continueByInertia2 {
+    
+    NSTimeInterval interval = (self.lastMovedTime2 - self.lastMovedTime1);
+    
+    NSLog(@"interval: %f", interval); //last time interval of the move event, it is always the same, as events are generated at regular intervals. unless the move stops, then it will be big
+    NSLog(@"Rotation: %f", self.currentRotation);
+    NSLog(@"lastDeltaRad: %f", self.lastDelta);
+    NSLog(@"lastDeltaDeg: %f", self.lastDelta*57.2958);
+    
 
-- (void)continueByInertia {
+    
+    self.currentSpeed = MAX(fabsf(self.lastDelta), kMinimumDelta); // only allow clockwise rotation, with a minimum speed
+    
+    NSLog(@"speed: %f", self.currentSpeed);
+    NSLog(@"-----------------");
+    
+    self.inertiaTimer = [NSTimer scheduledTimerWithTimeInterval:kTimePerFrame
+                                                            target:self
+                                                          selector:@selector(onInertiaTimer2)
+                                                          userInfo:nil
+                                                           repeats:YES];
+            [self onInertiaTimer2];     // excute once immediately
 
-    NSTimeInterval interval = (lastMovedTime2 - lastMovedTime1);
-
-    if (inertiaTimer) {
-
-        return;
-    } else if (interval == 0 || interval > kAZWheelPickerInertiaTimerAcceptableMaxInterval) {
-
-        [self fixPositionByRotationAnimated:YES];
-
-    } else {
-
-        currentSpeed = MIN(lastDuration, self.maximumSpeed);
-
-        if (interval < kAZWheelPickerInertiaTimerAcceptableMinInterval) {
-
-            currentSpeed = kAZWheelPickerInertiaTimerAcceptableMinInterval * currentSpeed / interval;
-            interval     = kAZWheelPickerInertiaTimerAcceptableMinInterval;
-        }
-
-        inertiaTimer = [NSTimer scheduledTimerWithTimeInterval:interval
-                                                        target:self
-                                                      selector:@selector(onInertiaTimer)
-                                                      userInfo:nil
-                                                       repeats:YES];
-        [self onInertiaTimer];     // excute once immediately
-
-        if (self.delegate &&
-            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-            [self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]) {
-
-            [self.delegate wheelViewDidStartSpinning:self];
-        }
-    }
 }
 
-- (void)onInertiaTimer {
 
-    if (self.continuousTrigger) {
+- (void)onInertiaTimer2 {
+    
+    _currentRotation += _currentSpeed;
+    _theWheel.transform = CGAffineTransformMakeRotation(_currentRotation);
+    _currentSpeed *= _animationDecelerationFactor;
+    
+   
+   // choose the desired index, at kAZWheelPickerChooseSectorSpeed speed, a full turn of the wheel is garanteed
+    if (_desiredIndex != -1 && fabsf(_currentSpeed) <= kAZWheelPickerChooseSectorSpeed ){
+        
+        //NSLog(@"chooseSpeed: %f", _currentSpeed);
+        
+        
+        int index      = [self rotation2index:_currentRotation];
+        
+        if (_currentIndex != index) {
+            
+            _currentIndex = index;
+            
+            int distanceToIndex = self.currentIndex - self.desiredIndex;
+            if (distanceToIndex < 0){
+                distanceToIndex = distanceToIndex +self.numberOfSectors;
+            }
+            
+            switch(distanceToIndex){
+                    
+                case 5: {
+                    break;
+                }
+                case 4: {
+                    break;
+                }
+                case 3: {
+                    break;
+                }
+                case 2: {
+                    break;
+                }
+                case 1: {
+                    //brake the wheel to a speed between 0.015 and 0.030
+                     //_currentSpeed=0.015;
+                     //_currentSpeed=0.030;
+                    _currentSpeed = drand48()*0.015+0.015;
+                    NSLog(@"----------------BRAKE at 1 %f",_currentSpeed);
 
-        self.currentRotation += currentSpeed;
+                    break;}
+                
+                case 0: {
+                    //brake the wheel to a speed between 0.005 and 0.010
+                    //_currentSpeed = 0.005;
+                    //_currentSpeed = 0.010;
+                    _currentSpeed = drand48()*0.005+0.005;
+                     NSLog(@"----------------BRAKE at 0 %f",_currentSpeed);
+                    break;}
+                    
+            }
 
-    } else {
-
-        _currentRotation += currentSpeed;
-        [self rotateToCurrentRotationAnimated:NO];
-
+            NSLog(@"CurrentIndex: %d   desiredIndex: %d", _currentIndex, _desiredIndex);
+        }
     }
-
-    currentSpeed *= self.animationDecelerationFactor;
-    currentSpeed  = MAX(currentSpeed, self.minimumSpeed);
-
-    if (fabsf(currentSpeed) < 0.01) {
-
+    
+    //stop the wheel
+    if (fabsf(_currentSpeed) <= kAZWheelPickerDefaultMinimumSpeed) {
+        
         [self stopInertiaTimer];
+        int index = [self rotation2index:_currentRotation];
+        
+        NSLog(@"wheel stopped");
+        NSLog(@"Rotation: %f", self.currentRotation);
+        NSLog(@"index: %d", index);
+        
+        
+        [self placeWheelOverAtIndex:index];
+        
+        NSLog(@"-----------------");
+    
         [self fixPositionByRotationAnimated:YES];
-
+        
         if (self.delegate &&
             [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
             [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
-
+            
             [self.delegate wheelViewDidEndSpinning:self];
         }
     }
 }
 
-#pragma mark -
+
+- (void)placeWheelOverAtIndex:(int)index {
+    
+    NSLog(@"Placing over at %d", index);
+    [self.theWheel addSubview:self.wheelOver];
+    self.wheelOver.transform = CGAffineTransformMakeRotation(-[self index2rotation:index]);
+}
+
+- (int)distanceToIndex:(NSUInteger)index {
+    
+    int dist = self.currentIndex - self.desiredIndex;
+    if (dist < 0){
+        dist = dist +self.numberOfSectors;
+    }
+    
+    return dist;
+}
 
 - (float)index2rotation:(int)index {
 
@@ -274,115 +367,6 @@
     return index;
 }
 
-- (void)rotateToCurrentRotationAnimated:(BOOL)animated {
-
-    [self rotateToCurrentRotationAnimated:animated completion:nil];
-}
-
-- (void)rotateToCurrentRotationAnimated:(BOOL)animated completion:(void (^)(void))completion {
-
-    [self rotateToCurrentRotationAnimated:animated needsCorrection:NO completion:completion];
-}
-
-- (void)rotateToCurrentRotationAnimated:(BOOL)animated
-                        needsCorrection:(BOOL)correction
-                             completion:(void (^)(void))completion {
-
-    CGFloat duration = 1.0;
-    CGFloat maxSteps = 2.0;
-    
-    typeof(self) weakself = self;
-    [UIView animateKeyframesWithDuration:currentSpeed
-                                   delay:0.0
-                                 options:UIViewKeyframeAnimationOptionCalculationModeLinear
-                              animations:^{
-
-         if (!correction) {
-
-             [UIView addKeyframeWithRelativeStartTime:0
-                                     relativeDuration:1.0 / duration
-                                           animations:^{
-                  theWheel.transform = CGAffineTransformMakeRotation(weakself.currentRotation);
-              }];
-
-         } else {
-             
-             [UIView addKeyframeWithRelativeStartTime:0
-                                     relativeDuration:duration / maxSteps
-                                           animations:^{
-                  theWheel.transform = CGAffineTransformRotate(theWheel.transform, M_PI);
-              }];
-
-             [UIView addKeyframeWithRelativeStartTime:1.0 / maxSteps
-                                     relativeDuration:duration / maxSteps
-                                           animations:^{
-                  theWheel.transform = CGAffineTransformMakeRotation(weakself.currentRotation);
-              }];
-         }
-     }
-                              completion:^(BOOL finished) {
-         if (completion) {
-
-             completion();
-         }
-     }];
-
-//    dispatch_block_t animationBlock = ^{
-//
-//        theWheel.transform = CGAffineTransformMakeRotation(self.currentRotation);
-//    };
-//
-//    [UIView animateWithDuration:animated ? 0.3 : 0.0
-//                     animations:^{
-//                         animationBlock();
-//                     }
-//                     completion:^(BOOL finished) {
-//
-//                         if (completion) {
-//
-//                             completion();
-//                         }
-//                     }];
-}
-
-- (void)setCurrentRotation:(float)currentRotation {
-
-    [self setCurrentRotation:currentRotation animated:NO];
-}
-
-- (void)setCurrentRotation:(float)currentRotation
-                  animated:(BOOL)animated {
-
-    _currentRotation = currentRotation;
-
-    int index      = [self rotation2index:currentRotation];
-
-    BOOL isChanged = (_selectedIndex != index);
-    _selectedIndex = index;
-
-    [self stopInertiaTimer];
-    [self rotateToCurrentRotationAnimated:animated completion:^{
-
-         if (self.delegate &&
-             [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-             [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
-
-             [self.delegate wheelViewDidEndSpinning:self];
-         }
-     }];
-
-    if (isChanged) {
-
-        [self sendActionsForControlEvents:UIControlEventValueChanged];
-
-        if (self.delegate &&
-            [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
-            [self.delegate respondsToSelector:@selector(wheelView:didSelectItemAtIndex:)]) {
-
-            [self.delegate wheelView:self didSelectItemAtIndex:index];
-        }
-    }
-}
 
 - (void)setSelectedIndex:(int)selectedIndex {
 
@@ -405,8 +389,18 @@
     CGFloat a = [self distanceBetweenAnglesAlpha:newAngle beta:oldAngle];
     NSLog(@"Correcting angle %f: %@", a, a < 0 ? @"YES" : @"NO");
     [self stopInertiaTimer];
-    [self rotateToCurrentRotationAnimated:animated needsCorrection:(a < 0) completion:^{
-
+    
+    
+    
+    [UIView animateWithDuration:kCorrectionAnimationDuration
+                          delay:0.8
+                        options:UIViewAnimationOptionCurveEaseInOut
+                     animations:^{
+        
+        self.theWheel.transform = CGAffineTransformMakeRotation(_currentRotation);
+        
+    } completion:^(BOOL finished) {
+        
          if (self.delegate &&
              [self.delegate conformsToProtocol:@protocol(AZWheelPickerViewDelegate)] &&
              [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {

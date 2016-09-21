@@ -16,24 +16,6 @@
 @protocol AZWheelPickerViewDelegate;
 
 @interface AZWheelPickerView : UIControl
-{
-	@private
-	UIImageView *theWheel;
-	
-	CGSize wheelSize;
-	
-	BOOL isTouchDown;
-	BOOL isTouchMoved;
-	float lastAtan2;
-	
-	float lastDuration;
-	float currentSpeed;
-	NSTimeInterval lastMovedTime1;
-	NSTimeInterval lastMovedTime2;
-	
-	NSTimer *inertiaTimer;
-	BOOL isRotatingByTimerWhenThisTapHappen;
-}
 
 @property (nonatomic, weak) id<AZWheelPickerViewDelegate> delegate;
 
@@ -41,6 +23,7 @@
  The UIImage of the spin wheel. Generally it is circle.
  */
 @property (nonatomic, strong) UIImage *wheelImage;
+@property (nonatomic, strong) UIImage *wheelOverImage;
 
 /**
  The initial rotation of the wheel. In most case the wheel's position is not match
@@ -60,12 +43,18 @@
 @property (nonatomic) NSUInteger selectedIndex;
 
 /**
+ this is the desired index at which the wheel should stop
+ */
+@property (nonatomic) NSInteger desiredIndex;
+
+
+/**
  The deceleration of the animation. The default is kAZWheelPickerDefaultDeceleration (0.97).
  */
 @property (nonatomic) CGFloat animationDecelerationFactor;
 
-@property (nonatomic) CGFloat maximumSpeed;
-@property (nonatomic) CGFloat minimumSpeed;
+
+//@property (nonatomic) CGFloat minimumSpeed;
 
 /**
  If set to YES, the UIControlEventValueChanged event will be send every time a sector pass by
