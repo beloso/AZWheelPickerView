@@ -11,6 +11,7 @@
 
 #define kAZWheelPickerDefaultDeceleration       0.99
 #define kAZWheelPickerDefaultMinimumSpeed       0.001
+// TODO: change this to be calculated taking into account the number of sectors
 #define kAZWheelPickerMaxChooseSectorSpeed      0.063
 #define kAZWheelPickerMinChooseSectorSpeed      0.0535
 #define kMinimumDelta                           0.30 //minimum speed to use if the touch move event is too slow
@@ -259,7 +260,8 @@
     if(_desiredIndex == -1 || !_canBreak){
     
         _currentSpeed = MAX(_chooseSectorSpeed,_currentSpeed*_animationDecelerationFactor);
-    } else {
+    } else if(_currentSpeed > kAZWheelPickerDefaultMinimumSpeed){
+        
         _currentSpeed *= _animationDecelerationFactor;
     }
     //_currentSpeed *= _animationDecelerationFactor;
@@ -282,7 +284,7 @@
                 distanceToIndex = distanceToIndex +self.numberOfSectors;
             }
             
-            if(distanceToIndex==5){
+            if(distanceToIndex==self.numberOfSectors-1){
                 _canBreak = YES;
                 NSLog(@"setting can break true");
             }
@@ -291,28 +293,50 @@
         }
     }
     
+    BOOL shouldStopDueToSpeed = fabsf(_currentSpeed) <= kAZWheelPickerDefaultMinimumSpeed;
+    BOOL forceStop = NO;
+    // if we can break and will go over our desired index then stop
+    if(!shouldStopDueToSpeed
+       && _canBreak
+       && _desiredIndex == [self rotation2index:_currentRotation]
+       && _desiredIndex != [self rotation2index:_currentRotation+_currentSpeed]){
+    
+        forceStop = YES;
+        NSLog(@"Forcing the wheel to stop at speed %f",_currentSpeed);
+    }
+    
     //stop the wheel
-    if (fabsf(_currentSpeed) <= kAZWheelPickerDefaultMinimumSpeed) {
+    if (forceStop || shouldStopDueToSpeed) {
         
-        [self stopInertiaTimer];
         int index = [self rotation2index:_currentRotation];
         
-        NSAssert(index==_desiredIndex,@"selecting wrong index");
+        if(_desiredIndex != -1
+           && _desiredIndex != index){
         
-        NSLog(@"wheel stopped");
-        NSLog(@"Rotation: %f", self.currentRotation);
-        NSLog(@"index: %d", index);
-        
-        
-        [self placeWheelOverAtIndex:index];
-        
-        NSLog(@"-----------------");
-    
-        [self fixPositionByRotationAnimated:YES];
-        
-        if ([self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+            // this may happen if we would stop a bit before or after the desired index
+            NSLog(@"Can't stop because we are not on the desired index");
             
-            [self.delegate wheelViewDidEndSpinning:self];
+        } else {
+        
+            [self stopInertiaTimer];
+
+            NSAssert(index==_desiredIndex,@"selecting wrong index");
+            
+            NSLog(@"wheel stopped");
+            NSLog(@"Rotation: %f", self.currentRotation);
+            NSLog(@"index: %d", index);
+            
+            
+            [self placeWheelOverAtIndex:index];
+            
+            NSLog(@"-----------------");
+            
+            [self fixPositionByRotationAnimated:YES];
+            
+            if ([self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+                
+                [self.delegate wheelViewDidEndSpinning:self];
+            }
         }
     }
 }
