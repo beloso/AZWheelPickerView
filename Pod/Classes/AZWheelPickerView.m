@@ -168,6 +168,18 @@
             return;
         }
         
+        // check if the next rotation will change the index and tell delegate
+        int index               = [self rotation2index:_currentRotation];
+        int nextRotationIndex   = [self rotation2index:_currentRotation + delta];
+        
+        if(index != nextRotationIndex){
+            
+            if([self.delegate respondsToSelector:@selector(wheelView:willPassThroughIndex:withVelocity:)]){
+                
+                [self.delegate wheelView:self willPassThroughIndex:nextRotationIndex withVelocity:delta];
+            }
+        }
+        
         self.lastDelta = delta;
         _currentRotation += self.lastDelta;
         NSLog(@"_currentRotation %f",_currentRotation);
@@ -266,15 +278,13 @@
     }
     //_currentSpeed *= _animationDecelerationFactor;
     
-   
+    int index               = [self rotation2index:_currentRotation];
+    
    // choose the desired index, at kAZWheelPickerChooseSectorSpeed speed, a full turn of the wheel is garanteed
     if (!_canBreak && _desiredIndex != -1 && fabsf(_currentSpeed) <= _chooseSectorSpeed ){
         
         //NSLog(@"chooseSpeed: %f", _currentSpeed);
-        
-        
-        int index      = [self rotation2index:_currentRotation];
-        
+
         if (_currentIndex != index) {
             
             _currentIndex = index;
@@ -308,8 +318,6 @@
     //stop the wheel
     if (forceStop || shouldStopDueToSpeed) {
         
-        int index = [self rotation2index:_currentRotation];
-        
         if(_desiredIndex != -1
            && _desiredIndex != index){
         
@@ -339,8 +347,21 @@
             }
         }
     }
+    
+    // if we are still rotating, check if the next rotation will change the index and tell delegate
+    if(self.inertiaTimer){
+    
+        int nextRotationIndex   = [self rotation2index:_currentRotation + _currentSpeed];
+        
+        if(index != nextRotationIndex){
+            
+            if([self.delegate respondsToSelector:@selector(wheelView:willPassThroughIndex:withVelocity:)]){
+                
+                [self.delegate wheelView:self willPassThroughIndex:nextRotationIndex withVelocity:_currentSpeed];
+            }
+        }
+    }
 }
-
 
 - (void)placeWheelOverAtIndex:(int)index {
     

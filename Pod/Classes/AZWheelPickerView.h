@@ -70,9 +70,10 @@
 @protocol AZWheelPickerViewDelegate <NSObject>
 
 @optional
+
 - (void)wheelViewDidStartSpinning:(AZWheelPickerView *)wheelView;
 - (void)wheelViewDidEndSpinning:(AZWheelPickerView *)wheelView;
-
 - (void)wheelView:(AZWheelPickerView *)wheelView didSelectItemAtIndex:(NSUInteger)index;
+- (void)wheelView:(AZWheelPickerView *)wheelView willPassThroughIndex:(NSUInteger)index withVelocity:(CGFloat)velocity;
 
 @end
