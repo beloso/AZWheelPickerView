@@ -182,7 +182,7 @@
         
         self.lastDelta = delta;
         _currentRotation += self.lastDelta;
-        NSLog(@"_currentRotation %f",_currentRotation);
+        //NSLog(@"_currentRotation %f",_currentRotation);
             
         self.theWheel.transform = CGAffineTransformMakeRotation(_currentRotation);
         
@@ -236,17 +236,17 @@
     
     NSTimeInterval interval = (self.lastMovedTime2 - self.lastMovedTime1);
     
-    NSLog(@"interval: %f", interval); //last time interval of the move event, it is always the same, as events are generated at regular intervals. unless the move stops, then it will be big
-    NSLog(@"Rotation: %f", self.currentRotation);
-    NSLog(@"lastDeltaRad: %f", self.lastDelta);
-    NSLog(@"lastDeltaDeg: %f", self.lastDelta*57.2958);
+    //NSLog(@"interval: %f", interval); //last time interval of the move event, it is always the same, as events are generated at regular intervals. unless the move stops, then it will be big
+    //NSLog(@"Rotation: %f", self.currentRotation);
+    //NSLog(@"lastDeltaRad: %f", self.lastDelta);
+    //NSLog(@"lastDeltaDeg: %f", self.lastDelta*57.2958);
     
 
     
     self.currentSpeed = MAX(fabsf(self.lastDelta), kMinimumDelta); // only allow clockwise rotation, with a minimum speed
     
-    NSLog(@"speed: %f", self.currentSpeed);
-    NSLog(@"-----------------");
+    //NSLog(@"speed: %f", self.currentSpeed);
+    //NSLog(@"-----------------");
     
     if([self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]){
     
@@ -296,10 +296,10 @@
             
             if(distanceToIndex==self.numberOfSectors-1){
                 _canBreak = YES;
-                NSLog(@"setting can break true");
+                //NSLog(@"setting can break true");
             }
             
-            NSLog(@"distance to index %d speed %f",distanceToIndex,_currentSpeed);
+            //NSLog(@"distance to index %d speed %f",distanceToIndex,_currentSpeed);
         }
     }
     
@@ -312,7 +312,7 @@
        && _desiredIndex != [self rotation2index:_currentRotation+_currentSpeed]){
     
         forceStop = YES;
-        NSLog(@"Forcing the wheel to stop at speed %f",_currentSpeed);
+        //NSLog(@"Forcing the wheel to stop at speed %f",_currentSpeed);
     }
     
     //stop the wheel
@@ -322,7 +322,7 @@
            && _desiredIndex != index){
         
             // this may happen if we would stop a bit before or after the desired index
-            NSLog(@"Can't stop because we are not on the desired index");
+            //NSLog(@"Can't stop because we are not on the desired index");
             
         } else {
         
@@ -330,14 +330,14 @@
 
             NSAssert(index==_desiredIndex,@"selecting wrong index");
             
-            NSLog(@"wheel stopped");
-            NSLog(@"Rotation: %f", self.currentRotation);
-            NSLog(@"index: %d", index);
+            //NSLog(@"wheel stopped");
+            //NSLog(@"Rotation: %f", self.currentRotation);
+            //NSLog(@"index: %d", index);
             
             
             [self placeWheelOverAtIndex:index];
             
-            NSLog(@"-----------------");
+            //NSLog(@"-----------------");
             
             [self fixPositionByRotationAnimated:YES];
             
@@ -365,7 +365,7 @@
 
 - (void)placeWheelOverAtIndex:(int)index {
     
-    NSLog(@"Placing over at %d", index);
+    //NSLog(@"Placing over at %d", index);
     [self.theWheel addSubview:self.wheelOver];
     self.wheelOver.transform = CGAffineTransformMakeRotation(-[self index2rotation:index]);
 }
@@ -426,7 +426,7 @@
     _currentRotation = newAngle;
 
     CGFloat a = [self distanceBetweenAnglesAlpha:newAngle beta:oldAngle];
-    NSLog(@"Correcting angle %f: %@", a, a < 0 ? @"YES" : @"NO");
+    //NSLog(@"Correcting angle %f: %@", a, a < 0 ? @"YES" : @"NO");
     [self stopInertiaTimer];
     
     if (isChanged) {
