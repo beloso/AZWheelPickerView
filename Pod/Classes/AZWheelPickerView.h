@@ -18,6 +18,7 @@
 @interface AZWheelPickerView : UIControl
 
 @property (nonatomic, weak) id<AZWheelPickerViewDelegate> delegate;
+@property (nonatomic) BOOL enforceMinimumSpeed;
 
 /**
  The UIImage of the spin wheel. Generally it is circle.
@@ -75,5 +76,11 @@
 - (void)wheelViewDidEndSpinning:(AZWheelPickerView *)wheelView;
 - (void)wheelView:(AZWheelPickerView *)wheelView didSelectItemAtIndex:(NSUInteger)index;
 - (void)wheelView:(AZWheelPickerView *)wheelView willPassThroughIndex:(NSUInteger)index withVelocity:(CGFloat)velocity;
+
+/**
+ *  @brief: called when we don't enforce minimum speed and the initial spinning speed is lower than the minimum.
+ *          This can be used to show an alert to spin with more velocity in the UI or something
+ */
+- (void)wheelView:(AZWheelPickerView *)wheelView startSpinSpeed:(CGFloat)speed belowMinimumSpeed:(CGFloat)minimumSpeed;
 
 @end
