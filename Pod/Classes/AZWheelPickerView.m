@@ -14,7 +14,8 @@
 // TODO: change this to be calculated taking into account the number of sectors
 #define kAZWheelPickerMaxChooseSectorSpeed      0.063
 #define kAZWheelPickerMinChooseSectorSpeed      0.0535
-#define kMinimumDelta                           0.30 //minimum speed to use if the touch move event is too slow
+#define kMinimumDeltaEnforce                    0.30//minimum speed to use if the touch move event is too slow and enforceMinimumSpeed is on
+#define kMinimumDeltaNoEnforce                  kAZWheelPickerMaxChooseSectorSpeed//minimum speed to use if the touch move event is too slow and we are not enforcing speed, we notifi delegate instead
 #define kTimePerFrame (1.0 / 60.0) // 60 fps
 #define kCorrectionAnimationDuration 0.5
 
@@ -41,6 +42,8 @@
 
 @property (nonatomic) BOOL canBreak;
 @property (nonatomic) CGFloat chooseSectorSpeed;
+
+@property (nonatomic) BOOL fullySpinning;
 
 @end
 
@@ -241,14 +244,31 @@
     //NSLog(@"lastDeltaRad: %f", self.lastDelta);
     //NSLog(@"lastDeltaDeg: %f", self.lastDelta*57.2958);
     
+    CGFloat minDelta = self.enforceMinimumSpeed ? kMinimumDeltaEnforce : kMinimumDeltaNoEnforce;
 
+    // only allow clockwise rotation
+    // if we don't enforce minimum speed,
+    // then, if speed is lower than minimum don't consider the wheel spinning
+    // let it end the movement but allow for gestures to continue spinning it
+    self.currentSpeed = fabsf(self.lastDelta);
+    if(self.enforceMinimumSpeed){
     
-    self.currentSpeed = MAX(fabsf(self.lastDelta), kMinimumDelta); // only allow clockwise rotation, with a minimum speed
+        self.currentSpeed = MAX(self.currentSpeed, minDelta);
+    }
     
+    self.fullySpinning = self.currentSpeed >= minDelta;
+    
+    if(!self.fullySpinning
+       && [self.delegate respondsToSelector:@selector(wheelView:startSpinSpeed:belowMinimumSpeed:)]){
+    
+        [self.delegate wheelView:self startSpinSpeed:self.currentSpeed belowMinimumSpeed:minDelta];
+    }
+
     //NSLog(@"speed: %f", self.currentSpeed);
     //NSLog(@"-----------------");
     
-    if([self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]){
+    if(self.fullySpinning
+       && [self.delegate respondsToSelector:@selector(wheelViewDidStartSpinning:)]){
     
         [self.delegate wheelViewDidStartSpinning:self];
     }
@@ -269,10 +289,10 @@
     
     _currentRotation += _currentSpeed;
     _theWheel.transform = CGAffineTransformMakeRotation(_currentRotation);
-    if(_desiredIndex == -1 || !_canBreak){
+    if(self.fullySpinning && ( _desiredIndex == -1 || !_canBreak)){
     
         _currentSpeed = MAX(_chooseSectorSpeed,_currentSpeed*_animationDecelerationFactor);
-    } else if(_currentSpeed > kAZWheelPickerDefaultMinimumSpeed){
+    } else if(!self.fullySpinning || _currentSpeed > kAZWheelPickerDefaultMinimumSpeed){
         
         _currentSpeed *= _animationDecelerationFactor;
     }
@@ -303,7 +323,7 @@
         }
     }
     
-    BOOL shouldStopDueToSpeed = fabsf(_currentSpeed) <= kAZWheelPickerDefaultMinimumSpeed;
+    BOOL shouldStopDueToSpeed = _desiredIndex != -1 && fabsf(_currentSpeed) <= kAZWheelPickerDefaultMinimumSpeed;
     BOOL forceStop = NO;
     // if we can break and will go over our desired index then stop
     if(!shouldStopDueToSpeed
@@ -328,7 +348,10 @@
         
             [self stopInertiaTimer];
 
-            NSAssert(index==_desiredIndex,@"selecting wrong index");
+            NSAssert(self.fullySpinning
+                     && _desiredIndex != -1
+                     && index==_desiredIndex,
+                     @"selecting wrong index");
             
             //NSLog(@"wheel stopped");
             //NSLog(@"Rotation: %f", self.currentRotation);
@@ -341,7 +364,7 @@
             
             [self fixPositionByRotationAnimated:YES];
             
-            if ([self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
+            if (self.fullySpinning && [self.delegate respondsToSelector:@selector(wheelViewDidEndSpinning:)]) {
                 
                 [self.delegate wheelViewDidEndSpinning:self];
             }
