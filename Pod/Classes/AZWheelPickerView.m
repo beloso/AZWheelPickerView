@@ -15,7 +15,7 @@
 #define kAZWheelPickerMaxChooseSectorSpeed      0.063
 #define kAZWheelPickerMinChooseSectorSpeed      0.0535
 #define kMinimumDeltaEnforce                    0.30//minimum speed to use if the touch move event is too slow and enforceMinimumSpeed is on
-#define kMinimumDeltaNoEnforce                  kAZWheelPickerMaxChooseSectorSpeed//minimum speed to use if the touch move event is too slow and we are not enforcing speed, we notifi delegate instead
+#define kMinimumDeltaNoEnforce                  kAZWheelPickerMaxChooseSectorSpeed//minimum speed to use if the touch move event is too slow and we are not enforcing speed, we notify delegate instead
 #define kTimePerFrame (1.0 / 60.0) // 60 fps
 #define kCorrectionAnimationDuration 0.5
 
@@ -512,6 +512,13 @@
 
     NSInteger oldIndex = _selectedIndex;
     _selectedIndex = selectedIndex;
+    
+    // if we are setting indeterminate index
+    // then don't notify delegate of value change nor move the wheel
+    if(selectedIndex == -1){
+        
+        return;
+    }
 
     CGFloat oldAngle   = _currentRotation;
     CGFloat newAngle   = [self index2rotation:selectedIndex];
